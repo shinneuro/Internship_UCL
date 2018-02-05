@@ -1,3 +1,5 @@
+time_started <- sprintf('Started at: %s',Sys.time())
+
 real_dat <- read.csv("Speekenbrink_Konstantinidis_2016_Exp1_anonymous.csv")
 alldat <- subset(real_dat,id2 != 1) # excluding first participant. reindexing needed.
 
@@ -99,3 +101,5 @@ library(parallelsugar) # parallel for Windows # source: https://github.com/natha
 library(fOptions)
 
 BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+
+time_finished <- sprintf('Ended at: %s',Sys.time())
