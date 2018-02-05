@@ -51,7 +51,7 @@ bayesUpdate <- function(sg2_zeta,sg2_epsilon,id,trial,choice,util){
     E[i+1,] <- E[i,] + (choice[i]==1:4)*K[i,]*(util[i] - E[i,])
     S[i+1,] <- (1-(choice[i]==1:4)*K[i,])*(S[i,]+sg2_zeta)
   }
-  return(E)
+  return(list(E,S))
 }
 
 
@@ -64,6 +64,34 @@ softMax <- function(theta,beta=0,E) {
   p <- p/rowSums(p) # make sure is normalized
 }
 
+PMU <- function(E,S) {
+  # constructed without fkf package that has been used in Speekenbrink lab. 
+  library(OpenMx)
+  
+  # Matrix A
+  
+  c0 <- c(1,1,1)
+  c1 <- c(-1,0,0)
+  c2 <- c(0,-1,0)
+  c3 <- c(0,0,-1)
+  
+  A <- vector("list", length = 4)
+  A[[1]] <- cbind(c0,c1,c2,c3)
+  A[[2]] <- cbind(c1,c0,c2,c3)
+  A[[3]] <- cbind(c1,c2,c0,c3)
+  A[[4]] <- cbind(c1,c2,c3,c0)
+  
+  # mean and covariance
+  for(i in 1:200) { # of trials
+    for( j in 1:4) { # of arms
+      means <- as.vector(A[[j]] %*% E[i,])
+      cov <- A[[j]]%*%diag(S[i,]+sg2_epsilon)%*%t(A[[j]])
+      p[i,j] <- omxMnor(cov,means,c(0,0,0),c(Inf,Inf,Inf)) # or try pmvnorm from the mvtnorm
+      
+    }
+  }
+  return(p)
+}
 
 # Delta / SMf -------------------------------------------------------------
 
@@ -81,8 +109,6 @@ P_DeltaSMf_mLL <- function(par,data) {
 L_DeltaSMf_mLL <- function(par,data) {
   eta <- 1/(1+exp(-par[1]))
   theta <- exp(par[2])
-  #alpha <- exp(par[3])
-  #lambda <- exp(par[4])
   ut <- LinearUtil(data$payoff)
   E <- deltaLearning(eta,data$deck,ut)
   p <- softMax(theta,beta=0,E)
@@ -106,8 +132,6 @@ P_DecaySMf_mLL <- function(par,data){
 L_DecaySMf_mLL <- function(par,data){
   eta <- 1/(1+exp(-par[1]))
   theta <- exp(par[2])
-  #alpha <- exp(par[3])
-  #lambda <- exp(par[4])
   ut <- LinearUtil(data$payoff)
   E <- decayLearning(eta,data$deck,ut)
   p <- softMax(theta,beta=0,E)
@@ -124,7 +148,7 @@ P_BayesSMf_mLL <- function(par,data){
   alpha <- exp(par[4])
   lambda <- exp(par[5])
   ut <- ProspectUtil(alpha, lambda, data$payoff)
-  E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
+  E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[1]]
   p <- softMax(theta,beta=0,E)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
@@ -133,17 +157,31 @@ L_BayesSMf_mLL <- function(par,data){
   sg2_zeta <- exp(par[1])
   sg2_epsilon <- exp(par[2])
   theta <- exp(par[3])
-  #alpha <- exp(par[4])
-  #lambda <- exp(par[5])
   ut <- LinearUtil(data$payoff)
-  E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
+  E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[1]]
   p <- softMax(theta,beta=0,E)
+  -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
+}
+
+
+# BayesPMU ----------------------------------------------------------------
+
+P_BayesPMU_mLL <- function(par,data){
+  sg2_zeta <- exp(par[1])
+  sg2_epsilon <- exp(par[2])
+  alpha <- exp(par[3])
+  lambda <- exp(par[4])
+  ut <- ProspectUtil(alpha, lambda, data$payoff)
+  E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[1]]
+  S <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[2]]
+  p <- PMU(E,S)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
 # Optimization ------------------------------------------------------------
 
-optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+P_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  # par: eta, theta, alpha, lambda
   nstart <- 1000
   dat <- subset(alldat,id2==x)
   pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
@@ -162,10 +200,28 @@ optfun <- function(x,llfun,lower,upper) { # for each participant, parameter esti
   return(out)
 }
 
-bayes_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+L_optfun <- function(x,llfun,lower,upper) {
+  # par: eta, theta
   nstart <- 1000
   dat <- subset(alldat,id2==x)
-  
+  pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
+  pars <- t(lower + (upper - lower)*pars)
+  pars[,1] <- log(pars[,1]/(1-pars[,1]))
+  if(upper[2] >= 1 & lower[2] > 0) pars[,2] <- log(pars[,2]) # theta
+  if(upper[2] < 1 & lower[2] > 0) pars[,2] <- log(pars[,2]/(1-log(pars[,2]))) # theta
+  tll <- rep(NA,nstart)
+  for(i in 1:nstart) {
+    tll[i] <-  llfun(par=pars[i,],data=dat)
+  }
+  par <- pars[which.min(tll),]
+  out <- optim(par=par,fn=llfun,data=dat,control=list(maxit=1000)) # optim: general-purpose optimization. Nelder-Mead simplex algorithm.
+  cat("Subject",x,"estimated \n")
+  return(out)
+}
+
+P_bayes_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  nstart <- 1000
+  dat <- subset(alldat,id2==x)
   # pars: sg_zeta, sg_epsilon, theta, alpha, lambda
   pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
   pars <- t(lower + (upper - lower)*pars)
@@ -187,18 +243,64 @@ bayes_optfun <- function(x,llfun,lower,upper) { # for each participant, paramete
   return(out)
 }
 
+L_bayes_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  nstart <- 1000
+  dat <- subset(alldat,id2==x)
+  # pars: sg_zeta, sg_epsilon, theta
+  pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
+  pars <- t(lower + (upper - lower)*pars)
+  # pars[,1:2]: sg_zeta, sg_epsilon
+  pars[,1:2] <- log(pars[,1:2])
+  # pars[,3]: theta
+  if(upper[3] >= 1 & lower[3] > 0) pars[,3] <- log(pars[,3])
+  if(upper[3] < 1 & lower[3] > 0) pars[,3] <- log(pars[,3]/(1-log(pars[,3])))
+
+  tll <- rep(NA,nstart)
+  for(i in 1:nstart) {
+    tll[i] <-  llfun(par=pars[i,],data=dat)
+  }
+  par <- pars[which.min(tll),]
+  out <- optim(par=par,fn=llfun,data=dat,control=list(maxit=1000)) # optim: general-purpose optimization. Nelder-Mead simplex algorithm.
+  cat("Subject",x,"estimated \n")
+  return(out)
+}
+
+kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  nstart <- 1000
+  dat <- subset(alldat,id2==x)
+  
+  # pars: sg_zeta, sg_epsilon, alpha, lambda
+  pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
+  pars <- t(lower + (upper - lower)*pars)
+  # pars[,1:2]: sg_zeta, sg_epsilon
+  pars[,1:2] <- log(pars[,1:2])
+  # pars[,3:4]: alpha, lambda
+  pars[,3:ncol(pars)] <- log(pars[,3:ncol(pars)])
+  
+  tll <- rep(NA,nstart)
+  for(i in 1:nstart) {
+    tll[i] <-  llfun(par=pars[i,],data=dat)
+  }
+  par <- pars[which.min(tll),]
+  out <- optim(par=par,fn=llfun,data=dat,control=list(maxit=1000)) # optim: general-purpose optimization. Nelder-Mead simplex algorithm.
+  cat("Subject",x,"estimated \n")
+  return(out)
+}
 
 # Result ------------------------------------------------------------------
 
 library(parallelsugar) # parallel for Windows # source: https://github.com/nathanvan/parallelsugar
 library(fOptions)
-P_DeltaSMf <- mclapply(as.list(unique(alldat$id2)),optfun,llfun=P_DeltaSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
-L_DeltaSMf <- mclapply(as.list(unique(alldat$id2)),optfun,llfun=L_DeltaSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+P_DeltaSMf <- mclapply(as.list(unique(alldat$id2)),P_optfun,llfun=P_DeltaSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_DeltaSMf <- mclapply(as.list(unique(alldat$id2)),L_optfun,llfun=L_DeltaSMf_mLL,lower=c(.001,.001),upper=c(.999,5),mc.preschedule=FALSE,mc.cores=4)
 
-P_DecaySMf <- mclapply(as.list(unique(alldat$id2)),optfun,llfun=P_DecaySMf_mLL,lower=c(.001,.001,.001,0),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
-L_DecaySMf <- mclapply(as.list(unique(alldat$id2)),optfun,llfun=L_DecaySMf_mLL,lower=c(.001,.001,.001,0),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+P_DecaySMf <- mclapply(as.list(unique(alldat$id2)),P_optfun,llfun=P_DecaySMf_mLL,lower=c(.001,.001,.001,0),upper=c(.999,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_DecaySMf <- mclapply(as.list(unique(alldat$id2)),L_optfun,llfun=L_DecaySMf_mLL,lower=c(.001,.001),upper=c(.999,5),mc.preschedule=FALSE,mc.cores=4)
 
-P_BayesSMf <- mclapply(as.list(unique(alldat$id2)),bayes_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
-L_BayesSMf <- mclapply(as.list(unique(alldat$id2)),bayes_optfun,llfun=L_BayesSMf_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+P_BayesSMf <- mclapply(as.list(unique(alldat$id2)),P_bayes_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_BayesSMf <- mclapply(as.list(unique(alldat$id2)),L_bayes_optfun,llfun=L_BayesSMf_mLL,lower=c(.001,.001,.001),upper=c(500,500,5),mc.preschedule=FALSE,mc.cores=4)
 
-save(P_DeltaSMf,L_DeltaSMf, P_DecaySMf, L_DecaySMf,P_BayesSMf,L_BayesSMf,file="MinhoModels_DeltaSMf.RData")
+BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+
+
+save(P_DeltaSMf,L_DeltaSMf, P_DecaySMf, L_DecaySMf,P_BayesSMf,L_BayesSMf,BayesPMU,file="MinhoModels_to_PMU.RData")
