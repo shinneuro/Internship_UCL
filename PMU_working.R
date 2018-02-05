@@ -28,11 +28,7 @@ bayesUpdate <- function(sg2_zeta,sg2_epsilon,id,trial,choice,util){
 
 
 # Probability of Maximum Utility ------------------------------------------
-PMU <- function(E,S) {
-  # theta is consistency
-  # beta a (fixed) bias/exploration "bonus"
-  p <- exp(theta*E + beta)
-  p <- p/rowSums(p) # make sure is normalized
+PMU <- function(E,S, sg2_epsilon) {
 
   # fkf package used in Speekenbrink lab. 
   
@@ -50,6 +46,8 @@ PMU <- function(E,S) {
   A[[2]] <- cbind(c1,c0,c2,c3)
   A[[3]] <- cbind(c1,c2,c0,c3)
   A[[4]] <- cbind(c1,c2,c3,c0)
+  
+  p <- matrix(0,nrow=200,ncol=4)
   
   # mean and covariance
   for(i in 1:200) { # of trials
@@ -71,7 +69,7 @@ P_BayesPMU_mLL <- function(par,data){
   ut <- ProspectUtil(alpha, lambda, data$payoff)
   E <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[1]]
   S <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)[[2]]
-  p <- PMU(E,S)
+  p <- PMU(E,S,sg2_epsilon)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
@@ -100,4 +98,4 @@ kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, paramet
 library(parallelsugar) # parallel for Windows # source: https://github.com/nathanvan/parallelsugar
 library(fOptions)
 
-BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
