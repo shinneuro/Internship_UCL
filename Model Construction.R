@@ -300,7 +300,7 @@ L_DecaySMf <- mclapply(as.list(unique(alldat$id2)),L_optfun,llfun=L_DecaySMf_mLL
 P_BayesSMf <- mclapply(as.list(unique(alldat$id2)),P_bayes_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
 L_BayesSMf <- mclapply(as.list(unique(alldat$id2)),L_bayes_optfun,llfun=L_BayesSMf_mLL,lower=c(.001,.001,.001),upper=c(500,500,5),mc.preschedule=FALSE,mc.cores=4)
 
-BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+# BayesPMU <- mclapply(as.list(unique(alldat$id2)),kalman_optfun,llfun=P_BayesSMf_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
 
 
-save(P_DeltaSMf,L_DeltaSMf, P_DecaySMf, L_DecaySMf,P_BayesSMf,L_BayesSMf,BayesPMU,file="MinhoModels_to_PMU.RData")
+save(P_DeltaSMf,L_DeltaSMf, P_DecaySMf, L_DecaySMf,P_BayesSMf,L_BayesSMf,file="MinhoModels_to_PMU.RData")

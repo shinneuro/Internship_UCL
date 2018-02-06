@@ -2,7 +2,7 @@
 
 
 env_models = new.env()
-lapply("MinhoModels_DeltaSMf.RData", load, envir = env_models)
+lapply("MinhoModels_PMU_added.RData", load, envir = env_models)
 models = as.list(env_models)
 model_name <- names(models) #sapply(seq_along(models), function(idx) names(models)[idx])
 
@@ -16,11 +16,16 @@ para <- vector("list",length=5)
 AIC <- vector("double",length=length(models))
 delta_AIC <- vector("double",length=length(models))
 w_AIC <- vector("double",length=length(models))
-N_AIC <- vector("integer",length=length(models))
+#N_AIC <- matrix(0,ncol=length(models), nrow = 1)
+#colnames(N_AIC) <- model_name
 BIC <- vector("double",length=length(models))
 delta_BIC <- vector("double",length=length(models))
 w_BIC <- vector("double",length=length(models))
-N_BIC <- vector("integer",length=length(models))
+#N_BIC <- matrix(0,ncol=length(models), nrow = 1)
+#colnames(N_BIC) <- model_name
+N_IC <-  matrix(0,ncol=length(models), nrow = 2)
+rownames(N_IC) <- c("N_AIC","N_BIC")
+colnames(N_IC) <- model_name
 
 
 for (i in 1:N) { # number of participants
@@ -44,8 +49,8 @@ for (i in 1:N) { # number of participants
   selected_AIC <- model_name[which.max(w_AIC)]
   selected_BIC <- model_name[which.max(w_BIC)]
   
-  N_AIC[which.max(w_AIC)] <- N_AIC[which.max(w_AIC)] + 1
-  N_BIC[which.max(w_BIC)] <- N_BIC[which.max(w_BIC)] + 1
+  N_IC[1,which.max(w_AIC)] <- N_IC[1,which.max(w_AIC)] + 1 # N_AIC
+  N_IC[2,which.max(w_BIC)] <- N_IC[2,which.max(w_BIC)] + 1 # N_BIC
   
   participant[[i]] <- list(para, AIC, delta_AIC, w_AIC, selected_AIC, BIC, delta_BIC, w_BIC, selected_BIC)
   names( participant[[i]]) <- c("para","AIC", "delta_AIC", "w_AIC", "selected_AIC", "BIC", "delta_BIC", "w_BIC", "selected_BIC")
@@ -53,5 +58,5 @@ for (i in 1:N) { # number of participants
 
 
 
-save(participant, N_AIC, N_BIC, file="participants_analysis.RData")
+save(participant, N_IC, file="participants_analysis_PMU_added.RData")
 
