@@ -126,21 +126,23 @@ L_BayesPI_mLL <- function(par,data){
 
 # Upper Confidence Bound --------------------------------------------------
 
-UCB <- function(E,S) {
-  p <- E+1.96*sqrt(S)
+UCB <- function(E,S,theta) {
+  p <- exp(theta*(E+1.96*sqrt(S)))
+  p <- p/rowSums(p)
   return(p)
 }
 
 P_BayesUCB_mLL <- function(par,data){
   sg2_zeta <- exp(par[1])
   sg2_epsilon <- exp(par[2])
-  alpha <- exp(par[3])
-  lambda <- exp(par[4])
+  theta <- exp(par[3])
+  alpha <- exp(par[4])
+  lambda <- exp(par[5])
   ut <- ProspectUtil(alpha, lambda, data$payoff)
   res <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
   E <- res[[1]]
   S <- res[[2]]
-  p <- UCB(E,S)
+  p <- UCB(E,S,theta)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
@@ -148,19 +150,21 @@ L_BayesUCB_mLL <- function(par,data){
   sg2_zeta <- exp(par[1])
   sg2_epsilon <- exp(par[2])
   ut <- LinearUtil(data$payoff)
+  theta <- exp(par[3])
   res <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
   E <- res[[1]]
   S <- res[[2]]
-  p <- UCB(E,S)
+  p <- UCB(E,S,theta)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
 
 # Expected Improvement ----------------------------------------------------
 
-EI <- function(E,S) {
+EI <- function(E,S,theta) {
   m <- (E - apply(E,1,max))
-  p <- m*pnorm(m/sqrt(S))+sqrt(S)*dnorm(m/sqrt(S))
+  p <- exp(theta*(m*pnorm(m/sqrt(S))+sqrt(S)*dnorm(m/sqrt(S))))
+  p <- p/rowSums(p)
   return(p)
 }
 
@@ -168,24 +172,26 @@ EI <- function(E,S) {
 P_BayesEI_mLL <- function(par,data){
   sg2_zeta <- exp(par[1])
   sg2_epsilon <- exp(par[2])
-  alpha <- exp(par[3])
-  lambda <- exp(par[4])
+  theta <- exp(par[3])
+  alpha <- exp(par[4])
+  lambda <- exp(par[5])
   ut <- ProspectUtil(alpha, lambda, data$payoff)
   res <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
   E <- res[[1]]
   S <- res[[2]]
-  p <- EI(E,S)
+  p <- EI(E,S,theta)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
 L_BayesEI_mLL <- function(par,data){
   sg2_zeta <- exp(par[1])
   sg2_epsilon <- exp(par[2])
+  theta <- exp(par[3])
   ut <- LinearUtil(data$payoff)
   res <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
   E <- res[[1]]
   S <- res[[2]]
-  p <- EI(E,S)
+  p <- EI(E,S,theta)
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
@@ -247,7 +253,11 @@ L_BayesPMU <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=P_Bayes
 # L_BayesPI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesPI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
 
 # P_BayesUCB <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesUCB_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+<<<<<<< HEAD
 # L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001),upper=c(10,10),mc.preschedule=FALSE,mc.cores=4)
+=======
+L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001,.001),upper=c(10,10,10),mc.preschedule=FALSE,mc.cores=4)
+>>>>>>> 835b9d51d07a9e2f3b2545fd84ad3a33a586e4e2
 
 # P_BayesEI <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesEI_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
 # L_BayesEI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesEI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
