@@ -81,7 +81,16 @@ P_BayesPMU_mLL <- function(par,data){
   -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
 }
 
-
+L_BayesPMU_mLL <- function(par,data){
+  sg2_zeta <- exp(par[1])
+  sg2_epsilon <- exp(par[2])
+  ut <- LinearUtil(data$payoff)
+  res <- bayesUpdate(sg2_zeta,sg2_epsilon,data$id2,data$trial,data$deck,ut)
+  E <- res[[1]]
+  S <- res[[2]]
+  p <- PMU(E,S,sg2_epsilon)
+  -2*sum(log(p[cbind(1:nrow(data),data$deck)]))
+}
 
 # Probability of Improvement ----------------------------------------------
 
@@ -231,11 +240,14 @@ library(parallelsugar) # parallel for Windows # source: https://github.com/natha
 library(fOptions)
 
 # P_BayesPMU <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_BayesPMU <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
+
+
 # P_BayesPI <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesPI_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
 # L_BayesPI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesPI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
 
 # P_BayesUCB <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesUCB_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
-L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001),upper=c(10,10),mc.preschedule=FALSE,mc.cores=4)
+# L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001),upper=c(10,10),mc.preschedule=FALSE,mc.cores=4)
 
 # P_BayesEI <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesEI_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
 # L_BayesEI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesEI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
