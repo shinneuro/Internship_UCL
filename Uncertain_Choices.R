@@ -226,7 +226,7 @@ L_kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, param
   nstart <- 1000
   dat <- subset(alldat,id2==x)
   
-  # pars: sg_zeta, sg_epsilon, alpha, lambda
+  # pars: sg_zeta, sg_epsilon
   pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
   pars <- t(lower + (upper - lower)*pars)
   # pars[,1:2]: sg_zeta, sg_epsilon
@@ -242,25 +242,72 @@ L_kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, param
   return(out)
 }
 
+PT_kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  nstart <- 1000
+  dat <- subset(alldat,id2==x)
+  
+  # pars: sg_zeta, sg_epsilon, theta, alpha, lambda
+  pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
+  pars <- t(lower + (upper - lower)*pars)
+  # pars[,1:2]: sg_zeta, sg_epsilon
+  pars[,1:2] <- log(pars[,1:2])
+  # pars[,3]: theta
+  if(upper[3] >= 1 & lower[3] > 0) pars[,3] <- log(pars[,3])
+  if(upper[3] < 1 & lower[3] > 0) pars[,3] <- log(pars[,3]/(1-log(pars[,3])))
+  # pars[,4:5]: alpha, lambda
+  pars[,4:ncol(pars)] <- log(pars[,4:ncol(pars)])
+  
+  tll <- rep(NA,nstart)
+  for(i in 1:nstart) {
+    tll[i] <-  llfun(par=pars[i,],data=dat)
+  }
+  par <- pars[which.min(tll),]
+  out <- optim(par=par,fn=llfun,data=dat,control=list(maxit=1000)) # optim: general-purpose optimization. Nelder-Mead simplex algorithm.
+  cat("Subject",x,"estimated \n")
+  return(out)
+}
+
+LT_kalman_optfun <- function(x,llfun,lower,upper) { # for each participant, parameter estimation
+  nstart <- 1000
+  dat <- subset(alldat,id2==x)
+  
+  # pars: sg_zeta, sg_epsilon, theta
+  pars <- t(runif.sobol(nstart,length(lower),1,0,123345)) # t: matrix transpose # runif: generates random deviates # runif.sobol(n, dimension, init, scrambling, seed): Uniform scrambled Sobol sequence
+  pars <- t(lower + (upper - lower)*pars)
+  # pars[,1:2]: sg_zeta, sg_epsilon
+  pars[,1:2] <- log(pars[,1:2])
+  # pars[,3]: theta
+  if(upper[3] >= 1 & lower[3] > 0) pars[,3] <- log(pars[,3])
+  if(upper[3] < 1 & lower[3] > 0) pars[,3] <- log(pars[,3]/(1-log(pars[,3])))
+  
+  tll <- rep(NA,nstart)
+  for(i in 1:nstart) {
+    tll[i] <-  llfun(par=pars[i,],data=dat)
+  }
+  par <- pars[which.min(tll),]
+  out <- optim(par=par,fn=llfun,data=dat,control=list(maxit=1000)) # optim: general-purpose optimization. Nelder-Mead simplex algorithm.
+  cat("Subject",x,"estimated \n")
+  return(out)
+}
+
 library(parallelsugar) # parallel for Windows # source: https://github.com/nathanvan/parallelsugar
 library(fOptions)
 
+# T_kalman: UCB, EI
+
+
 # P_BayesPMU <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
-L_BayesPMU <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
+# L_BayesPMU <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=P_BayesPMU_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
 
 
 # P_BayesPI <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesPI_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
 # L_BayesPI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesPI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
 
-# P_BayesUCB <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesUCB_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
-<<<<<<< HEAD
-# L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001),upper=c(10,10),mc.preschedule=FALSE,mc.cores=4)
-=======
-L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001,.001),upper=c(10,10,10),mc.preschedule=FALSE,mc.cores=4)
->>>>>>> 835b9d51d07a9e2f3b2545fd84ad3a33a586e4e2
+P_BayesUCB <- mclapply(as.list(unique(alldat$id2)),PT_kalman_optfun,llfun=P_BayesUCB_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_BayesUCB <- mclapply(as.list(unique(alldat$id2)),LT_kalman_optfun,llfun=L_BayesUCB_mLL,lower=c(.001,.001,.001),upper=c(500,500,5),mc.preschedule=FALSE,mc.cores=4)
 
-# P_BayesEI <- mclapply(as.list(unique(alldat$id2)),P_kalman_optfun,llfun=P_BayesEI_mLL,lower=c(.001,.001,.001,.001),upper=c(500,500,2,5),mc.preschedule=FALSE,mc.cores=4)
-# L_BayesEI <- mclapply(as.list(unique(alldat$id2)),L_kalman_optfun,llfun=L_BayesEI_mLL,lower=c(.001,.001),upper=c(500,500),mc.preschedule=FALSE,mc.cores=4)
+P_BayesEI <- mclapply(as.list(unique(alldat$id2)),PT_kalman_optfun,llfun=P_BayesEI_mLL,lower=c(.001,.001,.001,.001,.001),upper=c(500,500,5,2,5),mc.preschedule=FALSE,mc.cores=4)
+L_BayesEI <- mclapply(as.list(unique(alldat$id2)),LT_kalman_optfun,llfun=L_BayesEI_mLL,lower=c(.001,.001,.001),upper=c(500,500,5),mc.preschedule=FALSE,mc.cores=4)
 
 
 time_finished <- sprintf('Ended at: %s',Sys.time())

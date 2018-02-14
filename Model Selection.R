@@ -2,7 +2,7 @@
 
 
 env_models = new.env()
-lapply("MinhoModels_PMU_added.RData", load, envir = env_models)
+lapply("final_prospect_only.RData", load, envir = env_models)
 models = as.list(env_models)
 model_name <- names(models) #sapply(seq_along(models), function(idx) names(models)[idx])
 
@@ -12,7 +12,8 @@ N <- length(models[[1]]) # number of participants
 M <- length(models) # number of models
 
 participant <- vector("list",length=length(models[[1]]))
-para <- vector("list",length=5)
+para <- vector("list",length=length(models))
+names(para) <- model_name
 AIC <- vector("double",length=length(models))
 delta_AIC <- vector("double",length=length(models))
 w_AIC <- vector("double",length=length(models))
@@ -57,6 +58,14 @@ for (i in 1:N) { # number of participants
 }
 
 
+selected <- matrix(0,nrow=79,ncol=2)
+colnames(selected) <- c("selected_AIC","selected_BIC")
 
-save(participant, N_IC, file="participants_analysis_PMU_added.RData")
+for (i in 1:79) {
+   selected[i,1] <- participant[[i]]$selected_AIC
+   selected[i,2] <- participant[[i]]$selected_BIC
+}
+
+
+save(participant, N_IC, selected, file="participants_analysis_final_prospect_only.RData")
 
